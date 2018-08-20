@@ -1,6 +1,8 @@
 from __future__ import print_function
 import tensorflow as tf
 import numpy as np
+import os
+import cv2
 
 import TensorflowUtils as utils
 import read_MITSceneParsingData as scene_parsing
@@ -213,18 +215,32 @@ def main(argv=None):
                 saver.save(sess, FLAGS.logs_dir + "model.ckpt", itr)
 
     elif FLAGS.mode == "visualize":
-        valid_images, valid_annotations = validation_dataset_reader.get_random_batch(FLAGS.batch_size)
-        pred = sess.run(pred_annotation, feed_dict={image: valid_images, annotation: valid_annotations,
-                                                    keep_probability: 1.0})
-        valid_annotations = np.squeeze(valid_annotations, axis=3)
-        pred = np.squeeze(pred, axis=3)
+        vis_dir = os.path.join(FLAGS.logs_dir, "visualize")
+        if not os.path.exists(vis_dir):
+            os.makedirs(vis_dir)
+        
+        for itr in range(len(valid_records)):
+            valid_images, valid_annotations = validation_dataset_reader.next_batch(1)
+            pred = sess.run(pred_annotation, feed_dict={image: valid_images, annotation: valid_annotations,
+                                                        keep_probability: 1.0})
 
-        for itr in range(FLAGS.batch_size):
-            utils.save_image(valid_images[itr].astype(np.uint8), FLAGS.logs_dir, name="inp_" + str(5+itr))
-            utils.save_image(valid_annotations[itr].astype(np.uint8), FLAGS.logs_dir, name="gt_" + str(5+itr))
-            utils.save_image(pred[itr].astype(np.uint8), FLAGS.logs_dir, name="pred_" + str(5+itr))
+            valid_images = np.squeeze(valid_images)
+            valid_annotations = np.squeeze(valid_annotations)
+            pred = np.squeeze(pred)
+            pred = pred.astype(np.uint8)
+
+            img_res = valid_images.shape;
+            output = np.zeros((img_res[0], 3 * img_res[1], 3), dtype=np.uint8)
+
+            valid_annotations = cv2.applyColorMap(valid_annotations, cv2.COLORMAP_HSV)
+            pred = cv2.applyColorMap(pred, cv2.COLORMAP_HSV)
+
+            output[:, 0*img_res[1]:1*img_res[1], :] = valid_images
+            output[:, 1*img_res[1]:2*img_res[1], :] = valid_annotations
+            output[:, 2*img_res[1]:3*img_res[1], :] = pred
+
+            utils.save_image(output, vis_dir, name="output_" + str(itr).zfill(5))
             print("Saved image: %d" % itr)
-
 
 if __name__ == "__main__":
     tf.app.run()
