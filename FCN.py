@@ -7,7 +7,7 @@ import cv2
 import TensorflowUtils as utils
 import readDataset as scene_parsing
 import datetime
-import BatchDatsetReader as dataset
+import BatchDatasetReader as dataset
 from six.moves import xrange
 
 FLAGS = tf.flags.FLAGS
