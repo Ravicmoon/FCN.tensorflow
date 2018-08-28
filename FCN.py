@@ -5,26 +5,25 @@ import os
 import cv2
 
 import TensorflowUtils as utils
-import read_MITSceneParsingData as scene_parsing
+import readDataset as scene_parsing
 import datetime
 import BatchDatsetReader as dataset
 from six.moves import xrange
 
 FLAGS = tf.flags.FLAGS
+tf.flags.DEFINE_integer("max_iter", "40001", "# of iterations")
 tf.flags.DEFINE_integer("batch_size", "2", "batch size for training")
 tf.flags.DEFINE_string("logs_dir", "logs/", "path to logs directory")
-tf.flags.DEFINE_string("data_dir", "Data_zoo/MIT_SceneParsing/", "path to dataset")
+tf.flags.DEFINE_string("data_dir", "data/KITTI_road", "path to dataset")
 tf.flags.DEFINE_float("learning_rate", "1e-4", "Learning rate for Adam Optimizer")
-tf.flags.DEFINE_string("model_dir", "Model_zoo/", "Path to vgg model mat")
+tf.flags.DEFINE_string("model_dir", "model/", "Path to vgg model mat")
 tf.flags.DEFINE_bool('debug', "False", "Debug mode: True/ False")
 tf.flags.DEFINE_string('mode', "train", "Mode train/ test/ visualize")
 
 MODEL_URL = 'http://www.vlfeat.org/matconvnet/models/beta16/imagenet-vgg-verydeep-19.mat'
 
-MAX_ITERATION = int(1e5 + 1)
-NUM_OF_CLASSESS = 151
+NUM_OF_CLASSESS = 3
 IMAGE_SIZE = 224
-
 
 def vgg_net(weights, image):
     layers = (
@@ -193,7 +192,7 @@ def main(argv=None):
         print("Model restored...")
 
     if FLAGS.mode == "train":
-        for itr in xrange(MAX_ITERATION):
+        for itr in xrange(FLAGS.max_iter):
             train_images, train_annotations = train_dataset_reader.next_batch(FLAGS.batch_size)
             feed_dict = {image: train_images, annotation: train_annotations, keep_probability: 0.85}
 
@@ -203,8 +202,9 @@ def main(argv=None):
                 train_loss, summary_str = sess.run([loss, loss_summary], feed_dict=feed_dict)
                 print("Step: %d, Train_loss:%g" % (itr, train_loss))
                 train_writer.add_summary(summary_str, itr)
-
+            
             if itr % 500 == 0:
+                '''
                 valid_images, valid_annotations = validation_dataset_reader.next_batch(FLAGS.batch_size)
                 valid_loss, summary_sva = sess.run([loss, loss_summary], feed_dict={image: valid_images, annotation: valid_annotations,
                                                        keep_probability: 1.0})
@@ -212,6 +212,7 @@ def main(argv=None):
 
                 # add validation loss to TensorBoard
                 validation_writer.add_summary(summary_sva, itr)
+                '''
                 saver.save(sess, FLAGS.logs_dir + "model.ckpt", itr)
 
     elif FLAGS.mode == "visualize":
@@ -233,7 +234,7 @@ def main(argv=None):
             output = np.zeros((img_res[0], 3 * img_res[1], 3), dtype=np.uint8)
 
             valid_annotations = cv2.applyColorMap(valid_annotations, cv2.COLORMAP_HSV)
-            pred = cv2.applyColorMap(pred, cv2.COLORMAP_HSV)
+            pred = cv2.applyColorMap(pred * 100, cv2.COLORMAP_HSV)
 
             output[:, 0*img_res[1]:1*img_res[1], :] = valid_images
             output[:, 1*img_res[1]:2*img_res[1], :] = valid_annotations

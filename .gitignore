@@ -1,8 +1,8 @@
-logs/*
+logs
+data
+model
 .idea
 .vs
-Data_zoo/*
-Model_zoo/*
 *.pyc
 *.pyproj
 *.sln
