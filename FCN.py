@@ -14,15 +14,15 @@ tf.logging.set_verbosity(tf.logging.INFO)
 
 FLAGS = tf.flags.FLAGS
 tf.flags.DEFINE_integer('num_steps', '300000', 'number of steps for optimization')
-tf.flags.DEFINE_integer('batch_size', '20', 'batch size for training')
+tf.flags.DEFINE_integer('batch_size', '2', 'batch size for training')
 tf.flags.DEFINE_integer('num_classes', '3', 'number of classes in dataset')
 tf.flags.DEFINE_float('learning_rate', '1e-10', 'fixed learning rate for Momentum Optimizer')
 tf.flags.DEFINE_float('momentum', '0.99', 'momentum for Momentum Optimizer')
 tf.flags.DEFINE_string('ckpt_path', 'vgg_16_160830.ckpt', 'path to checkpoint')
-tf.flags.DEFINE_string('log_dir', 'ckpt_180911_v1', 'path to logging directory')
+tf.flags.DEFINE_string('log_dir', 'ckpt_180912_v1', 'path to logging directory')
 tf.flags.DEFINE_string('data_dir', 'data', 'path to dataset')
 tf.flags.DEFINE_string('data_name', 'Cityscapes', 'name of dataset')
-tf.flags.DEFINE_string('mode', 'valid', 'either train or valid')
+tf.flags.DEFINE_string('mode', 'train', 'either train or valid')
 
 
 def FCN8(images, num_classes):
@@ -127,7 +127,7 @@ def main(_):
         '''
          Define the loss function
         '''
-        loss = tf.losses.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=tf.squeeze(gts))
+        loss = tf.losses.sparse_softmax_cross_entropy(logits=logits, labels=tf.squeeze(gts))
         total_loss = tf.losses.get_total_loss()
 
         '''
@@ -158,7 +158,7 @@ def main(_):
         if not tf.gfile.Exists(log_dir):
           tf.gfile.MakeDirs(log_dir)
 
-        with open(os.path.join(log_dir + 'info.txt'), 'w') as f:
+        with open(os.path.join(log_dir, 'info.txt'), 'w') as f:
             f.write('num_steps: ' + str(FLAGS.num_steps) + '\n')
             f.write('batch_size: ' + str(FLAGS.batch_size) + '\n')
             f.write('learning_rate: ' + str(FLAGS.learning_rate) + '\n')
