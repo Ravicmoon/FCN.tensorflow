@@ -7,6 +7,10 @@ _ITEMS_TO_DESCRIPTIONS = {
     'gt': 'A ground truth image',
 }
 
+_R_MEAN = 123.68
+_G_MEAN = 116.78
+_B_MEAN = 103.94
+
 class TFRecordDataset:
 
     def __init__(self, tfrecord_dir, dataset_name):
@@ -56,6 +60,26 @@ class TFRecordDataset:
                 items_to_descriptions=_ITEMS_TO_DESCRIPTIONS)
 
 
+    def _mean_image_subtraction(image, means):
+        ''' Subtracts the given means from each image channel.
+        
+        Adopted from vgg_preprocessing.py in TensorFlowOnSpark
+        (https://github.com/yahoo/TensorFlowOnSpark/tree/master/examples/slim/preprocessing)
+        '''
+        if image.get_shape().ndims != 3:
+            raise ValueError('Input must be of size [height, width, C>0]')
+        
+        num_channels = image.get_shape().as_list()[-1]
+        if len(means) != num_channels:
+            raise ValueError('len(means) must match the number of channels')
+        
+        channels = tf.split(axis=2, num_or_size_splits=num_channels, value=image)
+        for i in range(num_channels):
+            channels[i] -= means[i]
+            
+        return tf.concat(axis=2, values=channels)
+
+
     def load_batch(self, mode, batch_size = 32, height = 224, width = 224):
         """Loads a single batch of data.
 
@@ -78,18 +102,12 @@ class TFRecordDataset:
     
         [image, gt] = provider.get(['image', 'gt'])
 
-        # image: resize with crop
+        # Resize and normalize input images
         image = tf.image.resize_images(image, [height, width])
         image = tf.to_float(image)
+        image = _mean_image_subtraction(image, [_R_MEAN, _G_MEAN, _B_MEAN])
 
-        means = [123.68, 116.78, 103.94]
-
-        num_channels = image.get_shape().as_list()[-1]
-        channels = tf.split(axis=2, num_or_size_splits=num_channels, value=image)
-        for i in range(num_channels):
-            channels[i] -= means[i]
-        image = tf.concat(axis=2, values=channels)
-
+        # Resize GT
         gt = tf.image.resize_images(gt, [height, width])
         gt = tf.to_int64(gt)
 

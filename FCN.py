@@ -14,9 +14,10 @@ tf.logging.set_verbosity(tf.logging.INFO)
 
 FLAGS = tf.flags.FLAGS
 tf.flags.DEFINE_integer('num_steps', '50000', 'number of steps for optimization')
-tf.flags.DEFINE_integer('batch_size', '2', 'batch size for training')
+tf.flags.DEFINE_integer('batch_size', '20', 'batch size for training')
 tf.flags.DEFINE_integer('num_classes', '3', 'number of classes in dataset')
-tf.flags.DEFINE_float('learning_rate', '2e-4', 'learning rate for Adam Optimizer')
+tf.flags.DEFINE_float('learning_rate', '1e-10', 'fixed learning rate for Momentum Optimizer')
+tf.flags.DEFINE_float('momentum', '0.99', 'momentum for Momentum Optimizer')
 tf.flags.DEFINE_string('ckpt_path', 'vgg_16_160830.ckpt', 'path to checkpoint')
 tf.flags.DEFINE_string('log_dir', 'ckpt_180911_v1', 'path to logging directory')
 tf.flags.DEFINE_string('data_dir', 'data', 'path to dataset')
@@ -68,6 +69,7 @@ def main(_):
     if FLAGS.mode == 'valid':
 
         saver = tf.train.Saver(slim.get_variables_to_restore())
+        coord = tf.train.Coordinator()
         
         with tf.Session() as sess:
             '''
@@ -75,7 +77,7 @@ def main(_):
             '''
             saver.restore(sess, tf.train.latest_checkpoint(log_dir))
 
-            tf.train.start_queue_runners(sess, tf.train.Coordinator())
+            tf.train.start_queue_runners(sess, coord)
             
             eval_dir = os.path.join(log_dir, 'eval')
             if not tf.gfile.Exists(eval_dir):
@@ -105,7 +107,8 @@ def main(_):
         '''
          Define the loss function
         '''
-        loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=tf.squeeze(gts)))
+        loss = tf.losses.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=tf.squeeze(gts))
+        total_loss = tf.losses.get_total_loss()
 
         '''
          Define summaries
@@ -125,20 +128,9 @@ def main(_):
 
         '''
          Set learning rates and optimizer
+         (Fixed learning rate ofr Momentum Optimizer)
         '''
-        num_epochs_before_decay = 2
-        num_batches_per_epoch = num_samples / FLAGS.batch_size
-        num_steps_per_epoch = num_batches_per_epoch  # Because one step is one batch processed
-        decay_steps = int(num_epochs_before_decay * num_steps_per_epoch)
-
-        lr = tf.train.exponential_decay(
-                learning_rate = FLAGS.learning_rate,
-                global_step = tf.train.get_or_create_global_step(),
-                decay_steps = decay_steps,
-                decay_rate = 0.99,
-                staircase = True)
-
-        optimizer = tf.train.AdamOptimizer(learning_rate = lr)
+        optimizer = tf.train.MomentumOptimizer(learning_rate=FLAGS.learning_rate, momentum=FLAGS.momentum)
     
         '''
          Training phase
@@ -150,12 +142,13 @@ def main(_):
             f.write('num_steps: ' + str(FLAGS.num_steps) + '\n')
             f.write('batch_size: ' + str(FLAGS.batch_size) + '\n')
             f.write('learning_rate: ' + str(FLAGS.learning_rate) + '\n')
+            f.write('momentum: ' + str(FLAGS.momentum) + '\n')
             f.write('ckpt_path: ' + FLAGS.ckpt_path + '\n')
             f.write('data_dir: ' + FLAGS.data_dir + '\n')
             f.write('data_name: ' + FLAGS.data_name + '\n')
             f.write('mode: ' + FLAGS.mode)
 
-        train_op = slim.learning.create_train_op(loss, optimizer)
+        train_op = slim.learning.create_train_op(total_loss, optimizer)
 
         final_loss = slim.learning.train(
                 train_op = train_op,
