@@ -1,6 +1,7 @@
 logs
 data
 model
+ckpt_*
 .idea
 .vs
 *.pyc
