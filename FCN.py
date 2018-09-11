@@ -13,7 +13,7 @@ tf.logging.set_verbosity(tf.logging.INFO)
 
 
 FLAGS = tf.flags.FLAGS
-tf.flags.DEFINE_integer('num_steps', '50000', 'number of steps for optimization')
+tf.flags.DEFINE_integer('num_steps', '300000', 'number of steps for optimization')
 tf.flags.DEFINE_integer('batch_size', '20', 'batch size for training')
 tf.flags.DEFINE_integer('num_classes', '3', 'number of classes in dataset')
 tf.flags.DEFINE_float('learning_rate', '1e-10', 'fixed learning rate for Momentum Optimizer')
@@ -22,7 +22,7 @@ tf.flags.DEFINE_string('ckpt_path', 'vgg_16_160830.ckpt', 'path to checkpoint')
 tf.flags.DEFINE_string('log_dir', 'ckpt_180911_v1', 'path to logging directory')
 tf.flags.DEFINE_string('data_dir', 'data', 'path to dataset')
 tf.flags.DEFINE_string('data_name', 'Cityscapes', 'name of dataset')
-tf.flags.DEFINE_string('mode', 'train', 'either train or valid')
+tf.flags.DEFINE_string('mode', 'valid', 'either train or valid')
 
 
 def FCN8(images, num_classes):
@@ -51,6 +51,16 @@ def FCN8(images, num_classes):
     return tf.expand_dims(pred, 3), up_fuse2
 
 
+def IOU_for_label(gt, pred, label):
+    
+    gt[gt != label] = 0
+    pred[pred != label] = 0
+                
+    I = np.logical_and(gt, pred)
+    U = np.logical_or(gt, pred)
+    return np.count_nonzero(I) / np.count_nonzero(U)
+
+
 def main(_):
     
     log_dir = FLAGS.log_dir
@@ -72,6 +82,7 @@ def main(_):
         coord = tf.train.Coordinator()
         
         with tf.Session() as sess:
+            
             '''
              Restore parameters from check point
             '''
@@ -83,6 +94,7 @@ def main(_):
             if not tf.gfile.Exists(eval_dir):
                 tf.gfile.MakeDirs(eval_dir)
 
+            mIOU = 0
             exp = int(np.log10(num_samples)) + 1
             
             for i in range(num_samples):
@@ -94,6 +106,8 @@ def main(_):
                 pred_img = np.squeeze(pred_img)
                 pred_img = pred_img.astype(np.uint8)
 
+                mIOU += IOU_for_label(gt_img, pred_img, 2)
+                
                 img_res = gt_img.shape;
                 output = np.zeros((img_res[0], 2 * img_res[1]), dtype=np.uint8)
 
@@ -101,6 +115,12 @@ def main(_):
                 output[:, 1*img_res[1]:2*img_res[1]] = pred_img * 100
 
                 cv2.imwrite(os.path.join(eval_dir, FLAGS.mode + str(i).zfill(exp) + '.png'), output)
+
+            coord.request_stop()
+            coord.join()
+
+            mIOU /= num_samples
+            print('mIU: ' + str(mIOU))
 
 
     elif FLAGS.mode == 'train':

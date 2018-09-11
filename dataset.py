@@ -60,7 +60,7 @@ class TFRecordDataset:
                 items_to_descriptions=_ITEMS_TO_DESCRIPTIONS)
 
 
-    def _mean_image_subtraction(image, means):
+    def _mean_image_subtraction(self, image, means):
         ''' Subtracts the given means from each image channel.
         
         Adopted from vgg_preprocessing.py in TensorFlowOnSpark
@@ -105,7 +105,7 @@ class TFRecordDataset:
         # Resize and normalize input images
         image = tf.image.resize_images(image, [height, width])
         image = tf.to_float(image)
-        image = _mean_image_subtraction(image, [_R_MEAN, _G_MEAN, _B_MEAN])
+        image = self._mean_image_subtraction(image, [_R_MEAN, _G_MEAN, _B_MEAN])
 
         # Resize GT
         gt = tf.image.resize_images(gt, [height, width])
