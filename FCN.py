@@ -13,16 +13,19 @@ tf.logging.set_verbosity(tf.logging.INFO)
 
 
 FLAGS = tf.flags.FLAGS
-tf.flags.DEFINE_integer('num_steps', '300000', 'number of steps for optimization')
+tf.flags.DEFINE_integer('num_steps', '100000', 'number of steps for optimization')
 tf.flags.DEFINE_integer('batch_size', '2', 'batch size for training')
 tf.flags.DEFINE_integer('num_classes', '3', 'number of classes in dataset')
-tf.flags.DEFINE_float('learning_rate', '1e-10', 'fixed learning rate for Momentum Optimizer')
+tf.flags.DEFINE_float('learning_rate', '2e-4', 'learning rate for optimizer')
 tf.flags.DEFINE_float('momentum', '0.99', 'momentum for Momentum Optimizer')
+tf.flags.DEFINE_float('lr_decay_rate', '0.99', 'decay rate of learning rate')
+tf.flags.DEFINE_bool('lr_decay', 'True', 'exponentially decay learning rate')
 tf.flags.DEFINE_string('ckpt_path', 'vgg_16_160830.ckpt', 'path to checkpoint')
-tf.flags.DEFINE_string('log_dir', 'ckpt_180912_v1', 'path to logging directory')
+tf.flags.DEFINE_string('log_dir', 'ckpt_180911_v1', 'path to logging directory')
 tf.flags.DEFINE_string('data_dir', 'data', 'path to dataset')
 tf.flags.DEFINE_string('data_name', 'Cityscapes', 'name of dataset')
-tf.flags.DEFINE_string('mode', 'train', 'either train or valid')
+tf.flags.DEFINE_string('mode', 'valid', 'either train or valid')
+tf.flags.DEFINE_string('optimizer', 'Adam', 'supports momentum and Adam')
 
 
 def FCN8(images, num_classes):
@@ -69,7 +72,7 @@ def main(_):
      Setting up the model
     '''
     dataset = TFRecordDataset(FLAGS.data_dir, FLAGS.data_name)
-    images, gts, num_samples = dataset.load_batch(FLAGS.mode, FLAGS.batch_size if FLAGS.mode == 'train' else 1)
+    images, gts, org_images, num_samples = dataset.load_batch(FLAGS.mode, FLAGS.batch_size if FLAGS.mode == 'train' else 1)
 
     paddings = tf.constant([[0, 0], [96, 96], [96, 96], [0, 0]])
     pad_images = tf.pad(images, paddings, 'CONSTANT')
@@ -99,20 +102,27 @@ def main(_):
             
             for i in range(num_samples):
 
-                gt_img, pred_img = sess.run([gts, pred])
-
-                gt_img = np.squeeze(gt_img)
-                gt_img = gt_img.astype(np.uint8)
-                pred_img = np.squeeze(pred_img)
-                pred_img = pred_img.astype(np.uint8)
-
-                mIOU += IOU_for_label(gt_img, pred_img, 2)
+                r_images, r_gts, r_pred = sess.run([org_images, gts, pred])
                 
-                img_res = gt_img.shape;
-                output = np.zeros((img_res[0], 2 * img_res[1]), dtype=np.uint8)
+                r_images = np.squeeze(r_images)
+                r_gts = np.squeeze(r_gts)
+                r_gts = r_gts.astype(np.uint8)
+                r_pred = np.squeeze(r_pred)
+                r_pred = r_pred.astype(np.uint8)
 
-                output[:, 0*img_res[1]:1*img_res[1]] = gt_img * 100
-                output[:, 1*img_res[1]:2*img_res[1]] = pred_img * 100
+                mIOU += IOU_for_label(r_gts, r_pred, 2)
+                
+                res = r_images.shape;
+                output = np.zeros((res[0], 3 * res[1], 3), dtype=np.uint8)
+
+                r_gts = cv2.applyColorMap(r_gts * 100, cv2.COLORMAP_JET)
+                r_pred = cv2.applyColorMap(r_pred * 100, cv2.COLORMAP_JET)
+
+                r_images = 0.8 * r_images + 0.2 * r_pred
+
+                output[:, 0*res[1]:1*res[1], :] = r_images
+                output[:, 1*res[1]:2*res[1], :] = r_gts
+                output[:, 2*res[1]:3*res[1], :] = r_pred
 
                 cv2.imwrite(os.path.join(eval_dir, FLAGS.mode + str(i).zfill(exp) + '.png'), output)
 
@@ -120,7 +130,7 @@ def main(_):
             coord.join()
 
             mIOU /= num_samples
-            print('mIU: ' + str(mIOU))
+            print('mIOU: ' + str(mIOU))
 
 
     elif FLAGS.mode == 'train':
@@ -147,10 +157,33 @@ def main(_):
         init_fn = tf.contrib.framework.assign_from_checkpoint_fn(FLAGS.ckpt_path, variables_to_restore, ignore_missing_vars = True)
 
         '''
-         Set learning rates and optimizer
-         (Fixed learning rate ofr Momentum Optimizer)
+         Define the learning rate
         '''
-        optimizer = tf.train.MomentumOptimizer(learning_rate=FLAGS.learning_rate, momentum=FLAGS.momentum)
+        if (FLAGS.lr_decay):
+            num_epochs_before_decay = 2
+
+            num_batches_per_epoch = num_samples / FLAGS.batch_size
+            num_steps_per_epoch = num_batches_per_epoch  # Because one step is one batch processed
+            decay_steps = int(num_epochs_before_decay * num_steps_per_epoch)
+
+            lr = tf.train.exponential_decay(
+                    learning_rate = FLAGS.learning_rate,
+                    global_step = tf.train.get_or_create_global_step(),
+                    decay_steps = decay_steps,
+                    decay_rate = FLAGS.lr_decay_rate,
+                    staircase = True)
+        else:
+            lr = FLAGS.learning_rate
+
+        '''
+         Define the optimizer
+        '''
+        if (FLAGS.optimizer == 'momentum'):
+            optimizer = tf.train.MomentumOptimizer(learning_rate=lr, momentum=FLAGS.momentum)
+        elif (FLAGS.optimizer == 'Adam'):
+            optimizer = tf.train.AdamOptimizer(learning_rate=lr)
+        else:
+            print('Unknown name of optimizer')
     
         '''
          Training phase

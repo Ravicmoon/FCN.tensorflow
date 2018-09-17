@@ -60,10 +60,10 @@ class TFRecordDataset:
                 items_to_descriptions=_ITEMS_TO_DESCRIPTIONS)
 
 
-    def _mean_image_subtraction(self, image, means):
-        ''' Subtracts the given means from each image channel.
+    def image_arithmetic(self, image, means, op):
+        ''' Subtract means from each image channel or add means to each image channel
         
-        Adopted from vgg_preprocessing.py in TensorFlowOnSpark
+        Revised from vgg_preprocessing.py in TensorFlowOnSpark
         (https://github.com/yahoo/TensorFlowOnSpark/tree/master/examples/slim/preprocessing)
         '''
         if image.get_shape().ndims != 3:
@@ -74,10 +74,25 @@ class TFRecordDataset:
             raise ValueError('len(means) must match the number of channels')
         
         channels = tf.split(axis=2, num_or_size_splits=num_channels, value=image)
-        for i in range(num_channels):
-            channels[i] -= means[i]
+        
+        if op == '-':
+            for i in range(num_channels):
+                channels[i] -= means[i]
+        elif op == '+':
+            for i in range(num_channels):
+                channels[i] += means[i]
+        else:
+            print('Unknown operation')
             
         return tf.concat(axis=2, values=channels)
+
+
+    def mean_image_subtraction(self, image):
+        return self.image_arithmetic(image, [_R_MEAN, _G_MEAN, _B_MEAN], '-')
+
+
+    def mean_image_addition(self, image):
+        return self.image_arithmetic(image, [_R_MEAN, _G_MEAN, _B_MEAN], '+')
 
 
     def load_batch(self, mode, batch_size = 32, height = 224, width = 224):
@@ -103,15 +118,15 @@ class TFRecordDataset:
         [image, gt] = provider.get(['image', 'gt'])
 
         # Resize and normalize input images
-        image = tf.image.resize_images(image, [height, width])
-        image = tf.to_float(image)
-        image = self._mean_image_subtraction(image, [_R_MEAN, _G_MEAN, _B_MEAN])
+        org_image = tf.image.resize_images(image, [height, width])
+        image = tf.to_float(org_image)
+        image = self.mean_image_subtraction(image)
 
         # Resize GT
         gt = tf.image.resize_images(gt, [height, width])
         gt = tf.to_int64(gt)
 
         # Batch it up.
-        images, gts = tf.train.batch([image, gt], batch_size = batch_size, num_threads = 1, capacity = 2 * batch_size)
+        images, gts, org_images = tf.train.batch([image, gt, org_image], batch_size = batch_size, num_threads = 1, capacity = 2 * batch_size)
 
-        return images, gts, dataset.num_samples
+        return images, gts, org_images, dataset.num_samples
