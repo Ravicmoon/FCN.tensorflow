@@ -13,7 +13,7 @@ tf.logging.set_verbosity(tf.logging.INFO)
 
 
 FLAGS = tf.flags.FLAGS
-tf.flags.DEFINE_integer('num_steps', '100000', 'number of steps for optimization')
+tf.flags.DEFINE_integer('num_steps', '50000', 'number of steps for optimization')
 tf.flags.DEFINE_integer('batch_size', '2', 'batch size for training')
 tf.flags.DEFINE_integer('num_classes', '3', 'number of classes in dataset')
 tf.flags.DEFINE_float('learning_rate', '2e-4', 'learning rate for optimizer')
@@ -21,10 +21,10 @@ tf.flags.DEFINE_float('momentum', '0.99', 'momentum for Momentum Optimizer')
 tf.flags.DEFINE_float('lr_decay_rate', '0.99', 'decay rate of learning rate')
 tf.flags.DEFINE_bool('lr_decay', 'True', 'exponentially decay learning rate')
 tf.flags.DEFINE_string('ckpt_path', 'vgg_16_160830.ckpt', 'path to checkpoint')
-tf.flags.DEFINE_string('log_dir', 'ckpt_180911_v1', 'path to logging directory')
+tf.flags.DEFINE_string('log_dir', 'ckpt_180918_v1', 'path to logging directory')
 tf.flags.DEFINE_string('data_dir', 'data', 'path to dataset')
 tf.flags.DEFINE_string('data_name', 'Cityscapes', 'name of dataset')
-tf.flags.DEFINE_string('mode', 'valid', 'either train or valid')
+tf.flags.DEFINE_string('mode', 'train', 'either train or valid')
 tf.flags.DEFINE_string('optimizer', 'Adam', 'supports momentum and Adam')
 
 
@@ -189,17 +189,21 @@ def main(_):
          Training phase
         '''
         if not tf.gfile.Exists(log_dir):
-          tf.gfile.MakeDirs(log_dir)
+            tf.gfile.MakeDirs(log_dir)
 
+        # generate a log to save hyper-parameter info
         with open(os.path.join(log_dir, 'info.txt'), 'w') as f:
             f.write('num_steps: ' + str(FLAGS.num_steps) + '\n')
             f.write('batch_size: ' + str(FLAGS.batch_size) + '\n')
             f.write('learning_rate: ' + str(FLAGS.learning_rate) + '\n')
             f.write('momentum: ' + str(FLAGS.momentum) + '\n')
+            f.write('lr_decay_rate: ' + str(FLAGS.lr_decay_rate) + '\n')
+            f.write('lr_decay: ' + str(FLAGS.lr_decay) + '\n')
             f.write('ckpt_path: ' + FLAGS.ckpt_path + '\n')
             f.write('data_dir: ' + FLAGS.data_dir + '\n')
             f.write('data_name: ' + FLAGS.data_name + '\n')
-            f.write('mode: ' + FLAGS.mode)
+            f.write('mode: ' + FLAGS.mode + '\n')
+            f.write('optimizer: ' + FLAGS.optimizer)
 
         train_op = slim.learning.create_train_op(total_loss, optimizer)
 
