@@ -37,13 +37,19 @@ gt_files = _chunkify(gt_files, args.num_splits)
         
 for i in range(args.num_splits):
             
-    writer = tf.python_io.TFRecordWriter(args.data_name + '_' + args.mode + str(i).zfill(digits))
+    writer = tf.python_io.TFRecordWriter(args.data_name + '_' + args.mode + str(i).zfill(digits) + '.tfrecord')
 
     file_pairs = zip(img_files[i], gt_files[i])
 
     for img_file, gt_file in file_pairs:
 
         print('processing ' + img_file + ' file...')
+
+        _, img_ext = os.path.splitext(img_file)
+        _, gt_ext = os.path.splitext(gt_file)
+
+        img_ext = bytes(img_ext[1:], 'UTF-8')
+        gt_ext = bytes(gt_ext[1:], 'UTF-8')
 
         img_path = os.path.join(args.img_folder, img_file)
         gt_path = os.path.join(args.gt_folder, gt_file)
@@ -53,9 +59,9 @@ for i in range(args.num_splits):
     
         example = tf.train.Example(features=tf.train.Features(feature={
             'image/encoded': _bytes_feature(img),
-            'image/format': _bytes_feature(b'jpg'),
+            'image/format': _bytes_feature(img_ext),
             'gt/encoded': _bytes_feature(gt),
-            'gt/format': _bytes_feature(b'jpg')}))
+            'gt/format': _bytes_feature(gt_ext)}))
     
         writer.write(example.SerializeToString())
 
