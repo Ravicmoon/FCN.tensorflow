@@ -105,8 +105,8 @@ class TFRecordDataset:
           width: The size of each image after preprocessing.
 
         Returns:
-          images: A Tensor of size [batch_size, height, width, 3], image samples that have been preprocessed.
-          gts: A Tensor of size [batch_size, height, width, 1], image samples that can be used for visualization.
+          images: A Tensor of size [batch_size, height, width, 3], preprocessed input images.
+          gts: A Tensor of size [batch_size, height, width, 1], annotated images.
         """
 
         assert(mode in ['train', 'valid'])
@@ -123,7 +123,7 @@ class TFRecordDataset:
         image = self.mean_image_subtraction(image)
 
         # Resize GT
-        gt = tf.image.resize_images(gt, [height, width])
+        gt = tf.image.resize_images(gt, [height, width], tf.image.ResizeMethod.NEAREST_NEIGHBOR)
         gt = tf.to_int64(gt)
 
         # Batch it up.

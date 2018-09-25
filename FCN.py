@@ -2,6 +2,7 @@ import tensorflow as tf
 import tensorflow.contrib.slim as slim
 import tensorflow.contrib.slim.nets as nets
 import numpy as np
+import time
 import os
 import cv2
 
@@ -56,11 +57,14 @@ def FCN8(images, num_classes):
 
 def IOU_for_label(gt, pred, label):
     
-    gt[gt != label] = 0
-    pred[pred != label] = 0
+    gt_bin = np.copy(gt)
+    gt_bin[gt_bin != label] = 0
+
+    pred_bin = np.copy(pred)
+    pred_bin[pred_bin != label] = 0
                 
-    I = np.logical_and(gt, pred)
-    U = np.logical_or(gt, pred)
+    I = np.logical_and(gt_bin, pred_bin)
+    U = np.logical_or(gt_bin, pred_bin)
     return np.count_nonzero(I) / np.count_nonzero(U)
 
 
@@ -97,9 +101,10 @@ def main(_):
             if not tf.gfile.Exists(eval_dir):
                 tf.gfile.MakeDirs(eval_dir)
 
-            mIOU = 0
+            IOU = 0
             exp = int(np.log10(num_samples)) + 1
             
+            time_per_image = time.time()
             for i in range(num_samples):
 
                 r_images, r_gts, r_pred = sess.run([org_images, gts, pred])
@@ -110,13 +115,13 @@ def main(_):
                 r_pred = np.squeeze(r_pred)
                 r_pred = r_pred.astype(np.uint8)
 
-                mIOU += IOU_for_label(r_gts, r_pred, 2)
+                IOU += IOU_for_label(r_gts, r_pred, 2)
                 
                 res = r_images.shape;
                 output = np.zeros((res[0], 3 * res[1], 3), dtype=np.uint8)
 
-                r_gts = cv2.applyColorMap(r_gts * 100, cv2.COLORMAP_JET)
-                r_pred = cv2.applyColorMap(r_pred * 100, cv2.COLORMAP_JET)
+                r_gts = cv2.applyColorMap(r_gts * 80, cv2.COLORMAP_JET)
+                r_pred = cv2.applyColorMap(r_pred * 80, cv2.COLORMAP_JET)
 
                 r_images = 0.8 * r_images + 0.2 * r_pred
 
@@ -125,12 +130,15 @@ def main(_):
                 output[:, 2*res[1]:3*res[1], :] = r_pred
 
                 cv2.imwrite(os.path.join(eval_dir, FLAGS.mode + str(i).zfill(exp) + '.png'), output)
-
+                
             coord.request_stop()
             coord.join()
+            
+            time_per_image = (time.time() - time_per_image) / num_samples
+            print('time elapsed: ' + str(time_per_image))
 
-            mIOU /= num_samples
-            print('mIOU: ' + str(mIOU))
+            IOU /= num_samples
+            print('IOU for foreground: ' + str(IOU))
 
 
     elif FLAGS.mode == 'train':
@@ -144,8 +152,8 @@ def main(_):
          Define summaries
         '''
         tf.summary.image('image', images)
-        tf.summary.image('gt', tf.cast(gts * 100, tf.uint8))
-        tf.summary.image('pred', tf.cast(pred * 100, tf.uint8))
+        tf.summary.image('gt', tf.cast(gts * 80, tf.uint8))
+        tf.summary.image('pred', tf.cast(pred * 80, tf.uint8))
         tf.summary.scalar('loss', loss)
 
         '''
