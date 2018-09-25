@@ -1,4 +1,4 @@
-# FCN.tensorflow
+# tf.FCN
 Tensorflow implementation of [Fully Convolutional Networks for Semantic Segmentation](http://arxiv.org/pdf/1605.06211v1.pdf) (FCNs). 
 ![Fig1](/FCN-8s_VGG-16.png "Structure of FCN-8s based on VGG-16")
 
