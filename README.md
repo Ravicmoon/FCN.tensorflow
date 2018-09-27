@@ -18,12 +18,12 @@ Our implementation uses _tfrecord_ files to efficiently manage the dataset. Note
 ```
 python create_tf_record.py --img_folder=train/images, gt_folder=train/annotations, data_name=Cityscapes, --mode=train, --num_splits=5
 ```
-After running the script, you can find five tfrecord files (from Cityscapes_train0.tfrecord to Cityscapes_train4.tfrecord) in the working directory. If you want to evaluate the performance, you need to run the script, **create_tf_record.py** with `--mode=valid` option and generate the tfrecord files for validation.
+After running the script, you can find five _tfrecord_ files in the working directory. To generate _tfrecord_ files for validation, you need to run the script, **create_tf_record.py** with `--mode=valid` option.
 
 ## Training and evaluation
-We supports momentum and Adam optimizers to train the FCN. Original implementation uses the momentum optimizer but during our experiments, we found that Adam optimizer is better than the momentum in terms of training speed and quality. Also, you can control number of iterations, batch size, number of output labels, and learning rate. You can use a **FCN.py** script to both train and evaluate the FCN. Example of the usage is as follows.
+We supports momentum and Adam optimizers to train the FCN. Original implementation uses the momentum optimizer but during our experiments, we found that Adam optimizer is better than the momentum in terms of training speed and quality. Also, you can control number of iterations, batch size, number of output labels, and learning rate. You can use a **trainval.py** script to both train and evaluate the FCN. Example of the usage is as follows.
 ```
-python FCN.py --num_steps=100000 --batch_size=2 --num_classes=3 --learning_rate=2e-4 --lr_decay_rate=0.99 --lr_decay=True --ckpt_path=vgg_16_160830.ckpt --log_dir=ckpt_180917 --data_dir=data --data_name=Cityscapes --mode=train --optimizer=Adam
+python trainval.py --num_steps=100000 --batch_size=2 --num_classes=3 --learning_rate=2e-4 --lr_decay_rate=0.99 --lr_decay=True --ckpt_path=vgg_16_160830.ckpt --log_dir=ckpt_180917 --data_dir=data --data_name=Cityscapes --mode=train --optimizer=Adam
 ```
 To evaluate the FCN, you need to use the `--mode=valid` option. In that case, other options are ignored except for `--log_dir`, `--data_dir`, and `--data_name`. Currently, evaluation code is not generalized enough and only designed for our application, road segmentation.
 
