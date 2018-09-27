@@ -29,11 +29,14 @@ tf.flags.DEFINE_string('mode', 'train', 'either train or valid')
 tf.flags.DEFINE_string('optimizer', 'Adam', 'supports momentum and Adam')
 
 
-def FCN8(images, num_classes):
+def FCN8_atonce(images, num_classes):
     
+    paddings = tf.constant([[0, 0], [96, 96], [96, 96], [0, 0]])
+    pad_images = tf.pad(images, paddings, 'CONSTANT')
+
     model = nets.vgg
     with slim.arg_scope(model.vgg_arg_scope()):
-        score, end_points = model.vgg_16(images, num_classes, spatial_squeeze=False)
+        score, end_points = model.vgg_16(pad_images, num_classes, spatial_squeeze=False)
     
     with tf.variable_scope('FCN'):
         score_pool3 = slim.conv2d(0.0001 * end_points['vgg_16/pool3'], num_classes, 1, scope='score_pool3')
@@ -78,10 +81,7 @@ def main(_):
     dataset = TFRecordDataset(FLAGS.data_dir, FLAGS.data_name)
     images, gts, org_images, num_samples = dataset.load_batch(FLAGS.mode, FLAGS.batch_size if FLAGS.mode == 'train' else 1)
 
-    paddings = tf.constant([[0, 0], [96, 96], [96, 96], [0, 0]])
-    pad_images = tf.pad(images, paddings, 'CONSTANT')
-
-    pred, logits = FCN8(pad_images, FLAGS.num_classes)
+    pred, logits = FCN8_atonce(images, FLAGS.num_classes)
 
     if FLAGS.mode == 'valid':
 
