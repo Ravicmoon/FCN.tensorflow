@@ -6,7 +6,7 @@ import time
 import os
 import cv2
 
-from dataset import TFRecordDataset
+from dataset import TFRecordSegDataset
 from PIL import Image
 
 
@@ -22,7 +22,7 @@ tf.flags.DEFINE_float('momentum', '0.99', 'momentum for Momentum Optimizer')
 tf.flags.DEFINE_float('lr_decay_rate', '0.99', 'decay rate of learning rate')
 tf.flags.DEFINE_bool('lr_decay', 'True', 'exponentially decay learning rate')
 tf.flags.DEFINE_string('ckpt_path', 'vgg_16_160830.ckpt', 'path to checkpoint')
-tf.flags.DEFINE_string('log_dir', 'ckpt_180918_v1', 'path to logging directory')
+tf.flags.DEFINE_string('log_dir', 'ckpt_181005_v1', 'path to logging directory')
 tf.flags.DEFINE_string('data_dir', 'data', 'path to dataset')
 tf.flags.DEFINE_string('data_name', 'Cityscapes', 'name of dataset')
 tf.flags.DEFINE_string('mode', 'train', 'either train or valid')
@@ -72,24 +72,33 @@ def IOU_for_label(gt, pred, label):
 
 
 def main(_):
-    
+    '''
+     Shortcuts
+    '''
     log_dir = FLAGS.log_dir
+    batch_size = FLAGS.batch_size if FLAGS.mode == 'train' else 1
+    num_classes = FLAGS.num_classes
+    data_name = FLAGS.data_name
 
     '''
      Setting up the model
     '''
-    dataset = TFRecordDataset(FLAGS.data_dir, FLAGS.data_name)
-    images, gts, org_images, num_samples = dataset.load_batch(FLAGS.mode, FLAGS.batch_size if FLAGS.mode == 'train' else 1)
+    dataset = TFRecordSegDataset(FLAGS.data_dir, data_name)
+    data, num_samples = dataset.load_batch(FLAGS.mode, batch_size)
 
-    pred, logits = FCN8_atonce(images, FLAGS.num_classes)
+    # make synonyms for data
+    images = data[0]
+    gts = data[1]
+    org_images = data[2]
 
+    pred, logits = FCN8_atonce(images, num_classes)
+
+    
     if FLAGS.mode == 'valid':
-
         saver = tf.train.Saver(slim.get_variables_to_restore())
         coord = tf.train.Coordinator()
         
         with tf.Session() as sess:
-            
             '''
              Restore parameters from check point
             '''
@@ -106,7 +115,6 @@ def main(_):
             
             time_per_image = time.time()
             for i in range(num_samples):
-
                 r_images, r_gts, r_pred = sess.run([org_images, gts, pred])
                 
                 r_images = np.squeeze(r_images)
@@ -130,30 +138,29 @@ def main(_):
                 output[:, 2*res[1]:3*res[1], :] = r_pred
 
                 cv2.imwrite(os.path.join(eval_dir, FLAGS.mode + str(i).zfill(exp) + '.png'), output)
-                
+
             coord.request_stop()
             coord.join()
             
             time_per_image = (time.time() - time_per_image) / num_samples
             print('time elapsed: ' + str(time_per_image))
-
+            
             IOU /= num_samples
             print('IOU for foreground: ' + str(IOU))
-
 
     elif FLAGS.mode == 'train':
         '''
          Define the loss function
         '''
-        loss = tf.losses.sparse_softmax_cross_entropy(logits=logits, labels=tf.squeeze(gts))
+        loss = tf.losses.sparse_softmax_cross_entropy(tf.squeeze(gts), logits)
         total_loss = tf.losses.get_total_loss()
 
         '''
          Define summaries
         '''
-        tf.summary.image('image', images)
         tf.summary.image('gt', tf.cast(gts * 80, tf.uint8))
         tf.summary.image('pred', tf.cast(pred * 80, tf.uint8))
+        tf.summary.image('image', images)
         tf.summary.scalar('loss', loss)
 
         '''
@@ -167,28 +174,25 @@ def main(_):
         '''
          Define the learning rate
         '''
-        if (FLAGS.lr_decay):
+        if FLAGS.lr_decay:
             num_epochs_before_decay = 2
-
             num_batches_per_epoch = num_samples / FLAGS.batch_size
-            num_steps_per_epoch = num_batches_per_epoch  # Because one step is one batch processed
-            decay_steps = int(num_epochs_before_decay * num_steps_per_epoch)
+            decay_steps = int(num_epochs_before_decay * num_batches_per_epoch)
 
-            lr = tf.train.exponential_decay(
-                    learning_rate = FLAGS.learning_rate,
-                    global_step = tf.train.get_or_create_global_step(),
-                    decay_steps = decay_steps,
-                    decay_rate = FLAGS.lr_decay_rate,
-                    staircase = True)
+            lr = tf.train.exponential_decay(learning_rate = FLAGS.learning_rate,
+                                            global_step = tf.train.get_or_create_global_step(),
+                                            decay_steps = decay_steps,
+                                            decay_rate = FLAGS.lr_decay_rate,
+                                            staircase = True)
         else:
             lr = FLAGS.learning_rate
 
         '''
          Define the optimizer
         '''
-        if (FLAGS.optimizer == 'momentum'):
+        if FLAGS.optimizer == 'momentum':
             optimizer = tf.train.MomentumOptimizer(learning_rate=lr, momentum=FLAGS.momentum)
-        elif (FLAGS.optimizer == 'Adam'):
+        elif FLAGS.optimizer == 'Adam':
             optimizer = tf.train.AdamOptimizer(learning_rate=lr)
         else:
             print('Unknown name of optimizer')
@@ -226,11 +230,8 @@ def main(_):
 
         print('Finished training. Final batch loss %f' %final_loss)
 
-
     else:
-
         print('Unknown mode')
-
 
 if __name__ == "__main__":
     tf.app.run()

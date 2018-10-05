@@ -2,7 +2,6 @@ import tensorflow as tf
 import numpy as np
 import argparse
 import os
-from PIL import Image
 
 def _bytes_feature(value):
     return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
