@@ -6,6 +6,7 @@ import time
 import os
 import cv2
 
+from FCN import FCN8_atonce
 from dataset import TFRecordSegDataset
 from PIL import Image
 
@@ -29,45 +30,16 @@ tf.flags.DEFINE_string('mode', 'train', 'either train or valid')
 tf.flags.DEFINE_string('optimizer', 'Adam', 'supports momentum and Adam')
 
 
-def FCN8_atonce(images, num_classes):
+def calc_IOU(label, pred, n):
     
-    paddings = tf.constant([[0, 0], [96, 96], [96, 96], [0, 0]])
-    pad_images = tf.pad(images, paddings, 'CONSTANT')
-
-    model = nets.vgg
-    with slim.arg_scope(model.vgg_arg_scope()):
-        score, end_points = model.vgg_16(pad_images, num_classes, spatial_squeeze=False)
-    
-    with tf.variable_scope('FCN'):
-        score_pool3 = slim.conv2d(0.0001 * end_points['vgg_16/pool3'], num_classes, 1, scope='score_pool3')
-        score_pool4 = slim.conv2d(0.01 * end_points['vgg_16/pool4'], num_classes, 1, scope='score_pool4')
-    
-        score_pool3c = tf.image.central_crop(score_pool3, 7 / 13)
-        score_pool4c = tf.image.central_crop(score_pool4, 7 / 13)
-
-        up_score = slim.conv2d_transpose(score, num_classes, 4, stride=2, scope='up_score')
-        fuse1 = tf.add(up_score, score_pool4c, name='fuse1')
-
-        up_fuse1 = slim.conv2d_transpose(fuse1, num_classes, 4, stride=2, scope='up_fuse1')
-        fuse2 = tf.add(up_fuse1, score_pool3c, name='fuse2')
-
-        up_fuse2 = slim.conv2d_transpose(fuse2, num_classes, 16, stride=8, scope='up_fuse2')
-
-        pred = tf.argmax(up_fuse2, 3, name='pred')
-
-    return tf.expand_dims(pred, 3), up_fuse2
-
-
-def IOU_for_label(gt, pred, label):
-    
-    gt_bin = np.copy(gt)
-    gt_bin[gt_bin != label] = 0
+    label_bin = np.copy(label)
+    label_bin[label_bin != n] = 0
 
     pred_bin = np.copy(pred)
-    pred_bin[pred_bin != label] = 0
+    pred_bin[pred_bin != n] = 0
                 
-    I = np.logical_and(gt_bin, pred_bin)
-    U = np.logical_or(gt_bin, pred_bin)
+    I = np.logical_and(label_bin, pred_bin)
+    U = np.logical_or(label_bin, pred_bin)
     return np.count_nonzero(I) / np.count_nonzero(U)
 
 
@@ -88,7 +60,7 @@ def main(_):
 
     # make synonyms for data
     images = data[0]
-    gts = data[1]
+    labels = data[1]
     org_images = data[2]
 
     pred, logits = FCN8_atonce(images, num_classes)
@@ -115,26 +87,26 @@ def main(_):
             
             time_per_image = time.time()
             for i in range(num_samples):
-                r_images, r_gts, r_pred = sess.run([org_images, gts, pred])
+                r_images, r_labels, r_pred = sess.run([org_images, labels, pred])
                 
                 r_images = np.squeeze(r_images)
-                r_gts = np.squeeze(r_gts)
-                r_gts = r_gts.astype(np.uint8)
+                r_labels = np.squeeze(r_labels)
+                r_labels = r_labels.astype(np.uint8)
                 r_pred = np.squeeze(r_pred)
                 r_pred = r_pred.astype(np.uint8)
 
-                IOU += IOU_for_label(r_gts, r_pred, 2)
+                IOU += calc_IOU(r_labels, r_pred, 1)
                 
                 res = r_images.shape;
                 output = np.zeros((res[0], 3 * res[1], 3), dtype=np.uint8)
 
-                r_gts = cv2.applyColorMap(r_gts * 80, cv2.COLORMAP_JET)
-                r_pred = cv2.applyColorMap(r_pred * 80, cv2.COLORMAP_JET)
+                r_labels = cv2.applyColorMap(r_labels * 100, cv2.COLORMAP_JET)
+                r_pred = cv2.applyColorMap(r_pred * 100, cv2.COLORMAP_JET)
 
                 r_images = 0.8 * r_images + 0.2 * r_pred
 
                 output[:, 0*res[1]:1*res[1], :] = r_images
-                output[:, 1*res[1]:2*res[1], :] = r_gts
+                output[:, 1*res[1]:2*res[1], :] = r_labels
                 output[:, 2*res[1]:3*res[1], :] = r_pred
 
                 cv2.imwrite(os.path.join(eval_dir, FLAGS.mode + str(i).zfill(exp) + '.png'), output)
@@ -152,14 +124,14 @@ def main(_):
         '''
          Define the loss function
         '''
-        loss = tf.losses.sparse_softmax_cross_entropy(tf.squeeze(gts), logits)
+        loss = tf.losses.sparse_softmax_cross_entropy(tf.squeeze(labels), logits)
         total_loss = tf.losses.get_total_loss()
 
         '''
          Define summaries
         '''
-        tf.summary.image('gt', tf.cast(gts * 80, tf.uint8))
-        tf.summary.image('pred', tf.cast(pred * 80, tf.uint8))
+        tf.summary.image('label', tf.cast(labels * 100, tf.uint8))
+        tf.summary.image('pred', tf.cast(pred * 100, tf.uint8))
         tf.summary.image('image', images)
         tf.summary.scalar('loss', loss)
 
@@ -207,6 +179,7 @@ def main(_):
         with open(os.path.join(log_dir, 'info.txt'), 'w') as f:
             f.write('num_steps: ' + str(FLAGS.num_steps) + '\n')
             f.write('batch_size: ' + str(FLAGS.batch_size) + '\n')
+            f.write('num_classes: ' + str(FLAGS.num_classes) + '\n')
             f.write('learning_rate: ' + str(FLAGS.learning_rate) + '\n')
             f.write('momentum: ' + str(FLAGS.momentum) + '\n')
             f.write('lr_decay_rate: ' + str(FLAGS.lr_decay_rate) + '\n')
@@ -224,9 +197,7 @@ def main(_):
                 logdir = log_dir,
                 init_fn = init_fn,
                 number_of_steps = FLAGS.num_steps,
-                summary_op = tf.summary.merge_all(),
-                save_summaries_secs = 120,
-                save_interval_secs = 240)
+                summary_op = tf.summary.merge_all())
 
         print('Finished training. Final batch loss %f' %final_loss)
 

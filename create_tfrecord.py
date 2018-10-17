@@ -13,10 +13,10 @@ def _chunkify(list, num):
     return [list[i::num] for i in range(num)]
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--img_folder', type=str, default='data/Cityscapes/images/validation')
-parser.add_argument('--gt_folder', type=str, default='data/Cityscapes/annotations/validation')
+parser.add_argument('--img_folder', type=str, default='data/Cityscapes/images/training')
+parser.add_argument('--gt_folder', type=str, default='data/Cityscapes/annotations/training')
 parser.add_argument('--data_name', type=str, default='Cityscapes')
-parser.add_argument('--mode', type=str, default='valid')
+parser.add_argument('--mode', type=str, default='train')
 parser.add_argument('--num_splits', type=int, default=5)
 
 args = parser.parse_args()
