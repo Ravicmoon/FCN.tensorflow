@@ -15,9 +15,9 @@ tf.logging.set_verbosity(tf.logging.INFO)
 
 
 FLAGS = tf.flags.FLAGS
-tf.flags.DEFINE_integer('num_steps', '50000', 'number of steps for optimization')
+tf.flags.DEFINE_integer('num_epochs', '50', 'number of epochs for optimization')
 tf.flags.DEFINE_integer('batch_size', '2', 'batch size for training')
-tf.flags.DEFINE_integer('num_classes', '3', 'number of classes in dataset')
+tf.flags.DEFINE_integer('num_classes', '2', 'number of classes in dataset')
 tf.flags.DEFINE_float('learning_rate', '2e-4', 'learning rate for optimizer')
 tf.flags.DEFINE_float('momentum', '0.99', 'momentum for Momentum Optimizer')
 tf.flags.DEFINE_float('lr_decay_rate', '0.99', 'decay rate of learning rate')
@@ -124,7 +124,7 @@ def main(_):
         '''
          Define the loss function
         '''
-        loss = tf.losses.sparse_softmax_cross_entropy(tf.squeeze(labels), logits)
+        loss_xentropy = tf.losses.sparse_softmax_cross_entropy(tf.squeeze(labels), logits)
         total_loss = tf.losses.get_total_loss()
 
         '''
@@ -133,7 +133,7 @@ def main(_):
         tf.summary.image('label', tf.cast(labels * 100, tf.uint8))
         tf.summary.image('pred', tf.cast(pred * 100, tf.uint8))
         tf.summary.image('image', images)
-        tf.summary.scalar('loss', loss)
+        tf.summary.scalar('loss_xentropy', loss_xentropy)
 
         '''
          Define initialize function
@@ -146,10 +146,12 @@ def main(_):
         '''
          Define the learning rate
         '''
+        num_batches_per_epoch = np.ceil(num_samples / FLAGS.batch_size)
+        num_steps = FLAGS.num_epochs * num_batches_per_epoch
+
         if FLAGS.lr_decay:
             num_epochs_before_decay = 2
-            num_batches_per_epoch = num_samples / FLAGS.batch_size
-            decay_steps = int(num_epochs_before_decay * num_batches_per_epoch)
+            decay_steps = num_epochs_before_decay * num_batches_per_epoch
 
             lr = tf.train.exponential_decay(learning_rate = FLAGS.learning_rate,
                                             global_step = tf.train.get_or_create_global_step(),
@@ -177,7 +179,8 @@ def main(_):
 
         # generate a log to save hyper-parameter info
         with open(os.path.join(log_dir, 'info.txt'), 'w') as f:
-            f.write('num_steps: ' + str(FLAGS.num_steps) + '\n')
+            f.write('num_epochs: ' + str(FLAGS.num_epochs) + '\n')
+            f.write('num_steps: ' + str(num_steps) + '\n')
             f.write('batch_size: ' + str(FLAGS.batch_size) + '\n')
             f.write('num_classes: ' + str(FLAGS.num_classes) + '\n')
             f.write('learning_rate: ' + str(FLAGS.learning_rate) + '\n')
@@ -196,8 +199,9 @@ def main(_):
                 train_op = train_op,
                 logdir = log_dir,
                 init_fn = init_fn,
-                number_of_steps = FLAGS.num_steps,
-                summary_op = tf.summary.merge_all())
+                number_of_steps = num_steps,
+                summary_op = tf.summary.merge_all(),
+                save_summaries_secs = 60)
 
         print('Finished training. Final batch loss %f' %final_loss)
 
