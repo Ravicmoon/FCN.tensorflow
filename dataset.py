@@ -2,9 +2,18 @@ import tensorflow as tf
 import tensorflow.contrib.slim as slim
 import os
 
-_R_MEAN = 123.68
-_G_MEAN = 116.78
-_B_MEAN = 103.94
+# For reference
+_MEAN_IMAGE_NET = [123.68, 116.78, 103.94]
+
+_MEAN_KITTI = [89.4767, 96.2149, 93.3779]
+_MEAN_VISTAS = [105.6721, 118.0413, 121.7196]
+_MEAN_CITYSCAPES = [73.2730, 82.7704, 72.4525]
+_MEAN_PG_ASPHALT = [111.0550, 111.2197, 112.5539]
+
+_STD_KITTI = [71.7813, 76.4437, 80.0591]
+_STD_VISTAS = [64.5505, 67.9890, 76.0227]
+_STD_CITYSCAPES = [46.2474, 47.0882, 46.4506]
+_STD_PG_ASPHALT = [63.9797, 67.7894, 73.9272]
 
 class TFRecordDataset:
 
@@ -99,8 +108,8 @@ class TFRecordSegDataset(TFRecordDataset):
                 'gt': 'A ground truth image'}
 
 
-    def _mean_image_subtraction(self, image, means):
-        ''' Adopted from vgg_preprocessing.py in TensorFlowOnSpark
+    def _normalize_image(self, image, means, stds):
+        ''' Revised from vgg_preprocessing.py in TensorFlowOnSpark
         (https://github.com/yahoo/TensorFlowOnSpark/tree/master/examples/slim/preprocessing)
         '''
         if image.get_shape().ndims != 3:
@@ -111,7 +120,7 @@ class TFRecordSegDataset(TFRecordDataset):
         
         channels = tf.split(axis=2, num_or_size_splits=num_channels, value=image)
         for i in range(num_channels):
-            channels[i] -= means[i]
+            channels[i] = (channels[i] - means[i]) / stds[i]
         return tf.concat(axis=2, values=channels)
 
 
@@ -122,7 +131,14 @@ class TFRecordSegDataset(TFRecordDataset):
         # Resize and normalize input images
         org_image = tf.image.resize_images(image, [height, width])
         image = tf.to_float(org_image)
-        image = self._mean_image_subtraction(image, [_R_MEAN, _G_MEAN, _B_MEAN])
+        if self.dataset_name == 'KITTI':
+            image = self._normalize_image(image, _MEAN_KITTI, _STD_KITTI)
+        if self.dataset_name == 'Vistas':
+            image = self._normalize_image(image, _MEAN_VISTAS, _STD_VISTAS)
+        if self.dataset_name == 'Cityscapes':
+            image = self._normalize_image(image, _MEAN_CITYSCAPES, _STD_CITYSCAPES)
+        if self.dataset_name == 'PG_asphalt':
+            image = self._normalize_image(image, _MEAN_PG_ASPHALT, _STD_PG_ASPHALT)
 
         # Resize ground truth label
         label = tf.image.resize_images(label, [height, width], tf.image.ResizeMethod.NEAREST_NEIGHBOR)
