@@ -18,6 +18,8 @@ FLAGS = tf.flags.FLAGS
 tf.flags.DEFINE_integer('num_epochs', '50', 'number of epochs for optimization')
 tf.flags.DEFINE_integer('batch_size', '2', 'batch size for training')
 tf.flags.DEFINE_integer('num_classes', '2', 'number of classes in dataset')
+tf.flags.DEFINE_integer('height', '224', 'height of input images')
+tf.flags.DEFINE_integer('width', '224', 'width of input images')
 tf.flags.DEFINE_float('learning_rate', '2e-4', 'learning rate for optimizer')
 tf.flags.DEFINE_float('momentum', '0.99', 'momentum for Momentum Optimizer')
 tf.flags.DEFINE_float('lr_decay_rate', '0.99', 'decay rate of learning rate')
@@ -56,7 +58,7 @@ def main(_):
      Setting up the model
     '''
     dataset = TFRecordSegDataset(FLAGS.data_dir, data_name)
-    data, num_samples = dataset.load_batch(FLAGS.mode, batch_size)
+    data, num_samples = dataset.load_batch(FLAGS.mode, batch_size, FLAGS.height, FLAGS.width)
 
     # make synonyms for data
     images = data[0]
@@ -183,6 +185,8 @@ def main(_):
             f.write('num_steps: ' + str(num_steps) + '\n')
             f.write('batch_size: ' + str(FLAGS.batch_size) + '\n')
             f.write('num_classes: ' + str(FLAGS.num_classes) + '\n')
+            f.write('height: ' + str(FLAGS.height) + '\n')
+            f.write('width: ' + str(FLAGS.width) + '\n')
             f.write('learning_rate: ' + str(FLAGS.learning_rate) + '\n')
             f.write('momentum: ' + str(FLAGS.momentum) + '\n')
             f.write('lr_decay_rate: ' + str(FLAGS.lr_decay_rate) + '\n')
