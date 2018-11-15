@@ -8,12 +8,12 @@ _MEAN_IMAGE_NET = [123.68, 116.78, 103.94]
 _MEAN_KITTI = [89.4767, 96.2149, 93.3779]
 _MEAN_VISTAS = [105.6721, 118.0413, 121.7196]
 _MEAN_CITYSCAPES = [73.2730, 82.7704, 72.4525]
-_MEAN_PG_ASPHALT = [111.0550, 111.2197, 112.5539]
+_MEAN_PG = [115.7738, 114.2015, 112.9132]
 
 _STD_KITTI = [71.7813, 76.4437, 80.0591]
 _STD_VISTAS = [64.5505, 67.9890, 76.0227]
 _STD_CITYSCAPES = [46.2474, 47.0882, 46.4506]
-_STD_PG_ASPHALT = [63.9797, 67.7894, 73.9272]
+_STD_PG = [64.8986, 67.8520, 74.0758]
 
 class TFRecordDataset:
 
@@ -133,12 +133,12 @@ class TFRecordSegDataset(TFRecordDataset):
         image = tf.to_float(org_image)
         if self.dataset_name == 'KITTI':
             image = self._normalize_image(image, _MEAN_KITTI, _STD_KITTI)
-        if self.dataset_name == 'Vistas':
+        if self.dataset_name.find('Vistas') != -1:
             image = self._normalize_image(image, _MEAN_VISTAS, _STD_VISTAS)
         if self.dataset_name == 'Cityscapes':
             image = self._normalize_image(image, _MEAN_CITYSCAPES, _STD_CITYSCAPES)
-        if self.dataset_name == 'PG_asphalt':
-            image = self._normalize_image(image, _MEAN_PG_ASPHALT, _STD_PG_ASPHALT)
+        if self.dataset_name.find('PG') != -1:
+            image = self._normalize_image(image, _MEAN_PG, _STD_PG)
 
         # Resize ground truth label
         label = tf.image.resize_images(label, [height, width], tf.image.ResizeMethod.NEAREST_NEIGHBOR)
