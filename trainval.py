@@ -49,6 +49,7 @@ def main(_):
     '''
      Shortcuts
     '''
+    ckpt_path = FLAGS.ckpt_path
     log_dir = FLAGS.log_dir
     batch_size = FLAGS.batch_size if FLAGS.mode == 'train' else 1
     num_classes = FLAGS.num_classes
@@ -76,11 +77,11 @@ def main(_):
             '''
              Restore parameters from check point
             '''
-            saver.restore(sess, tf.train.latest_checkpoint(log_dir))
+            saver.restore(sess, tf.train.latest_checkpoint(ckpt_path))
 
             tf.train.start_queue_runners(sess, coord)
             
-            eval_dir = os.path.join(log_dir, 'eval')
+            eval_dir = os.path.join(ckpt_path, 'eval')
             if not tf.gfile.Exists(eval_dir):
                 tf.gfile.MakeDirs(eval_dir)
 
@@ -140,10 +141,17 @@ def main(_):
         '''
          Define initialize function
         '''
-        exclude = ['vgg_16/fc8', 'FCN']
+        if ckpt_path == 'vgg_16_160830.ckpt':
+            exclude = ['vgg_16/fc8', 'FCN']
+        else:
+            exclude = []
+        
+        if ckpt_path.find('.ckpt') == -1:
+            ckpt_path = tf.train.latest_checkpoint(ckpt_path);
+        
         variables_to_restore = slim.get_variables_to_restore(exclude=exclude)
-
-        init_fn = tf.contrib.framework.assign_from_checkpoint_fn(FLAGS.ckpt_path, variables_to_restore, ignore_missing_vars = True)
+        
+        init_fn = tf.contrib.framework.assign_from_checkpoint_fn(ckpt_path, variables_to_restore, ignore_missing_vars = True)
 
         '''
          Define the learning rate
