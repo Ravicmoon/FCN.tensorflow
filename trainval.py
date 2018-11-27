@@ -8,8 +8,8 @@ import cv2
 
 from FCN import FCN8_atonce
 from dataset import TFRecordSegDataset
+from eval_metrics import IOU
 from PIL import Image
-
 
 tf.logging.set_verbosity(tf.logging.INFO)
 
@@ -30,19 +30,6 @@ tf.flags.DEFINE_string('data_dir', 'data', 'path to dataset')
 tf.flags.DEFINE_string('data_name', 'Cityscapes', 'name of dataset')
 tf.flags.DEFINE_string('mode', 'train', 'either train or valid')
 tf.flags.DEFINE_string('optimizer', 'Adam', 'supports momentum and Adam')
-
-
-def calc_IOU(label, pred, n):
-    
-    label_bin = np.copy(label)
-    label_bin[label_bin != n] = 0
-
-    pred_bin = np.copy(pred)
-    pred_bin[pred_bin != n] = 0
-                
-    I = np.logical_and(label_bin, pred_bin)
-    U = np.logical_or(label_bin, pred_bin)
-    return np.count_nonzero(I) / np.count_nonzero(U)
 
 
 def main(_):
@@ -66,7 +53,7 @@ def main(_):
     labels = data[1]
     org_images = data[2]
 
-    pred, logits = FCN8_atonce(images, num_classes)
+    preds, logits = FCN8_atonce(images, num_classes)
 
     
     if FLAGS.mode == 'valid':
@@ -85,32 +72,32 @@ def main(_):
             if not tf.gfile.Exists(eval_dir):
                 tf.gfile.MakeDirs(eval_dir)
 
-            IOU = 0
+            iou = IOU(num_classes)
             exp = int(np.log10(num_samples)) + 1
             
             time_per_image = time.time()
             for i in range(num_samples):
-                r_images, r_labels, r_pred = sess.run([org_images, labels, pred])
+                r_images, r_labels, r_preds = sess.run([org_images, labels, preds])
                 
                 r_images = np.squeeze(r_images)
                 r_labels = np.squeeze(r_labels)
                 r_labels = r_labels.astype(np.uint8)
-                r_pred = np.squeeze(r_pred)
-                r_pred = r_pred.astype(np.uint8)
+                r_preds = np.squeeze(r_preds)
+                r_preds = r_preds.astype(np.uint8)
 
-                IOU += calc_IOU(r_labels, r_pred, 1)
+                iou.accumulate(r_labels, r_preds)
                 
                 res = r_images.shape;
                 output = np.zeros((res[0], 3 * res[1], 3), dtype=np.uint8)
 
-                r_labels = cv2.applyColorMap(r_labels * 100, cv2.COLORMAP_JET)
-                r_pred = cv2.applyColorMap(r_pred * 100, cv2.COLORMAP_JET)
+                r_labels = cv2.applyColorMap(r_labels * 10, cv2.COLORMAP_JET)
+                r_preds = cv2.applyColorMap(r_preds * 10, cv2.COLORMAP_JET)
 
-                r_images = 0.8 * r_images + 0.2 * r_pred
+                r_images = 0.8 * r_images + 0.2 * r_preds
 
                 output[:, 0*res[1]:1*res[1], :] = r_images
                 output[:, 1*res[1]:2*res[1], :] = r_labels
-                output[:, 2*res[1]:3*res[1], :] = r_pred
+                output[:, 2*res[1]:3*res[1], :] = r_preds
 
                 cv2.imwrite(os.path.join(eval_dir, FLAGS.mode + str(i).zfill(exp) + '.png'), output)
 
@@ -119,9 +106,7 @@ def main(_):
             
             time_per_image = (time.time() - time_per_image) / num_samples
             print('time elapsed: ' + str(time_per_image))
-            
-            IOU /= num_samples
-            print('IOU for foreground: ' + str(IOU))
+            print('IOUs:\n' + str(iou.calculate() * 100))
 
     elif FLAGS.mode == 'train':
         '''
@@ -133,9 +118,9 @@ def main(_):
         '''
          Define summaries
         '''
-        tf.summary.image('label', tf.cast(labels * 100, tf.uint8))
-        tf.summary.image('pred', tf.cast(pred * 100, tf.uint8))
-        tf.summary.image('image', images)
+        tf.summary.image('labels', tf.cast(labels, tf.uint8))
+        tf.summary.image('preds', tf.cast(preds, tf.uint8))
+        tf.summary.image('images', images)
         tf.summary.scalar('loss_xentropy', loss_xentropy)
 
         '''
