@@ -135,7 +135,7 @@ class TFRecordSegDataset(TFRecordDataset):
             image = self._normalize_image(image, _MEAN_KITTI, _STD_KITTI)
         if self.dataset_name.find('Vistas') != -1:
             image = self._normalize_image(image, _MEAN_VISTAS, _STD_VISTAS)
-        if self.dataset_name == 'Cityscapes':
+        if self.dataset_name.find('Cityscapes') != -1:
             image = self._normalize_image(image, _MEAN_CITYSCAPES, _STD_CITYSCAPES)
         if self.dataset_name.find('PG') != -1:
             image = self._normalize_image(image, _MEAN_PG, _STD_PG)
